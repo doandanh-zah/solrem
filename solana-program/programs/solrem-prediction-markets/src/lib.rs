@@ -128,9 +128,13 @@ pub mod solrem_prediction_markets {
     }
 
     /// Claim winnings from a resolved market
+    /// Uses reentrancy guard to prevent double-claiming
     pub fn claim_winnings(ctx: Context<ClaimWinnings>) -> Result<()> {
         let market = &ctx.accounts.market;
         let bet = &ctx.accounts.bet;
+        
+        // Reentrancy guard: check if winnings already claimed
+        require!(!bet.claimed, ErrorCode::WinningsAlreadyClaimed);
 
         require!(market.status == MarketStatus::Resolved, ErrorCode::MarketNotResolved);
         require!(bet.bettor == ctx.accounts.bettor.key(), ErrorCode::UnauthorizedClaimer);
@@ -146,17 +150,24 @@ pub mod solrem_prediction_markets {
             MarketOutcome::No => market.no_pool,
         };
 
+        // Prevent division by zero
+        require!(total_winning_bets > 0, ErrorCode::NoWinningBets);
+
         let winnings = if (market.outcome == MarketOutcome::Yes && bet.direction == BetDirection::Yes)
             || (market.outcome == MarketOutcome::No && bet.direction == BetDirection::No)
         {
-            // Calculate proportional winnings
+            // Calculate proportional winnings: (bet_amount * total_pool) / winning_pool
             (bet.amount * market.total_pool) / total_winning_bets
         } else {
             0
         };
 
+        // Mark bet as claimed before transfer (reentrancy protection)
+        let bet_mut = &mut ctx.accounts.bet;
+        bet_mut.claimed = true;
+
         if winnings > 0 {
-            // Transfer winnings to bettor
+            // Transfer winnings to bettor using PDA signer
             let seeds = &[
                 b"market",
                 market.market_id.to_le_bytes().as_ref(),
@@ -325,6 +336,7 @@ pub struct Bet {
     pub direction: BetDirection,
     pub created_at: i64,
     pub bump: u8,
+    pub claimed: bool, // Reentrancy guard flag
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
@@ -391,4 +403,8 @@ pub enum ErrorCode {
     UnauthorizedResolver,
     #[msg("Unauthorized claimer")]
     UnauthorizedClaimer,
+    #[msg("Winnings already claimed for this bet")]
+    WinningsAlreadyClaimed,
+    #[msg("No winning bets in this market")]
+    NoWinningBets,
 }

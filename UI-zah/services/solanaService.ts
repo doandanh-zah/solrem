@@ -1,6 +1,9 @@
 /**
- * Solana Service - Real Wallet & Smart Contract Integration
- * Replaces mock wallet with actual Phantom/Solflare connection
+ * Solana Service - Wallet Adapter Integration
+ * Uses @solana/wallet-adapter-react for proper Phantom/Solflare/Backpack support
+ * 
+ * NOTE: This file builds transaction structures but does NOT execute them.
+ * Actual execution requires a connected wallet with the wallet adapter context.
  */
 
 import {
@@ -11,98 +14,198 @@ import {
   LAMPORTS_PER_SOL,
 } from '@solana/web3.js';
 
-// Solana connection
-const NETWORK = import.meta.env.VITE_SOLANA_NETWORK || 'devnet';
-const RPC_ENDPOINT =
+// Program ID from Anchor deployment
+export const PROGRAM_ID = new PublicKey(
+  import.meta.env.VITE_PROGRAM_ID || 'SoLrEmPrEdIcTiOnMaRkEtS1111111111111111111',
+);
+
+// Network configuration
+export const NETWORK = import.meta.env.VITE_SOLANA_NETWORK || 'devnet';
+export const RPC_ENDPOINT =
   NETWORK === 'mainnet'
     ? 'https://api.mainnet-beta.solana.com'
     : 'https://api.devnet.solana.com';
 
-const connection = new Connection(RPC_ENDPOINT, 'confirmed');
-
-// Program ID from Anchor deployment
-const PROGRAM_ID = new PublicKey(
-  import.meta.env.VITE_PROGRAM_ID ||
-    'SoLrEmPrEdIcTiOnMaRkEtS1111111111111111111',
-);
+export const connection = new Connection(RPC_ENDPOINT, 'confirmed');
 
 /**
- * Detect available Solana wallet providers
+ * Instruction discriminator for Anchor programs
+ * 8-byte method identifier
  */
-export const detectWalletProviders = () => {
-  const providers: { name: string; adapter: any }[] = [];
+export const INSTRUCTION_DISCRIMINATORS = {
+  create_market: [184, 14, 59, 50, 140, 226, 197, 176],
+  place_bet: [59, 182, 63, 124, 87, 101, 35, 221],
+  resolve_market: [78, 48, 140, 62, 173, 184, 127, 52],
+  claim_winnings: [183, 213, 100, 140, 127, 96, 82, 15],
+} as const;
 
-  // Check for Phantom
-  if (
-    typeof window !== 'undefined' &&
-    (window as any).phantom?.solana?.isPhantom
-  ) {
-    providers.push({
-      name: 'Phantom',
-      adapter: (window as any).phantom.solana,
-    });
-  }
-
-  // Check for Solflare
-  if (typeof window !== 'undefined' && (window as any).solflare?.isSolflare) {
-    providers.push({ name: 'Solflare', adapter: (window as any).solflare });
-  }
-
-  // Check for Backpack
-  if (typeof window !== 'undefined' && (window as any).backpack?.isBackpack) {
-    providers.push({ name: 'Backpack', adapter: (window as any).backpack });
-  }
-
-  return providers;
+/**
+ * Get token mint address for the platform
+ */
+export const getTokenMint = (): PublicKey => {
+  return new PublicKey(import.meta.env.VITE_TOKEN_MINT || 'SoLrEm1111111111111111111111111111111111');
 };
 
 /**
- * Connect to wallet (Phantom, Solflare, etc.)
+ * Create a transaction for placing a bet
+ * 
+ * @param walletPublicKey - Connected wallet's public key
+ * @param marketId - Market identifier (u64)
+ * @param amount - Bet amount in lamports
+ * @param direction - 'YES' or 'NO'
+ * @returns Unsigned Transaction ready to be signed
  */
-export const connectWallet = async (
-  providerName: 'Phantom' | 'Solflare' | 'Backpack' = 'Phantom',
-): Promise<{ publicKey: string; provider: any } | null> => {
-  try {
-    const providers = detectWalletProviders();
-    const selected = providers.find(p => p.name === providerName);
+export const createBetTransaction = async (
+  walletPublicKey: string,
+  marketId: string,
+  amount: number,
+  direction: 'YES' | 'NO',
+): Promise<Transaction> => {
+  const walletPubkey = new PublicKey(walletPublicKey);
+  const marketIdNum = BigInt(marketId);
+  const mint = getTokenMint();
 
-    if (!selected) {
-      // Redirect to install page
-      if (providerName === 'Phantom') {
-        window.open('https://phantom.app/', '_blank');
-      } else if (providerName === 'Solflare') {
-        window.open('https://solflare.com/', '_blank');
-      }
-      throw new Error(
-        `${providerName} wallet not detected. Please install it.`,
-      );
-    }
+  // Find market PDA
+  const [marketPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from('market'), Buffer.from(marketIdNum.toLeBytes())],
+    PROGRAM_ID,
+  );
 
-    const resp = await selected.adapter.connect();
-    const publicKey = resp.publicKey.toString();
+  // Find bet PDA
+  const [betPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from('bet'), marketPda.toBuffer(), walletPubkey.toBuffer()],
+    PROGRAM_ID,
+  );
 
-    console.log(`Connected to ${providerName}:`, publicKey);
+  // Find market's token account
+  const [marketTokenAccount] = PublicKey.findProgramAddressSync(
+    [Buffer.from('market'), mint.toBuffer(), walletPubkey.toBuffer()],
+    PROGRAM_ID,
+  );
 
-    return {
-      publicKey,
-      provider: selected.adapter,
-    };
-  } catch (error) {
-    console.error('Wallet connection error:', error);
-    return null;
-  }
+  // Create associated token account for wallet if needed
+  // In production, you'd check if it exists first
+
+  const transaction = new Transaction();
+
+  // Add the place_bet instruction
+  // Note: Actual instruction data encoding depends on Anchor IDL
+  // This is a placeholder structure
+  const instruction = new Transaction().add({
+    keys: [
+      { pubkey: marketPda, isSigner: false, isWritable: true },
+      { pubkey: betPda, isSigner: false, isWritable: true },
+      { pubkey: walletPubkey, isSigner: true, isWritable: true },
+      { pubkey: walletPubkey, isSigner: false, isWritable: true }, // token account
+      { pubkey: marketTokenAccount, isSigner: false, isWritable: true },
+      { pubkey: mint, isSigner: false, isWritable: false },
+    ],
+    programId: PROGRAM_ID,
+  });
+
+  // For now, use a simple SOL transfer as placeholder
+  // Replace with actual Anchor instruction when IDL is available
+  const transferInstruction = SystemProgram.transfer({
+    fromPubkey: walletPubkey,
+    toPubkey: marketPda,
+    lamports: amount,
+  });
+
+  transaction.add(transferInstruction);
+
+  // Set transaction metadata
+  const { blockhash } = await connection.getLatestBlockhash();
+  transaction.recentBlockhash = blockhash;
+  transaction.feePayer = walletPubkey;
+
+  return transaction;
 };
 
 /**
- * Disconnect wallet
+ * Create a transaction for claiming winnings
+ * 
+ * @param walletPublicKey - Connected wallet's public key
+ * @param marketId - Market identifier
+ * @returns Unsigned Transaction ready to be signed
  */
-export const disconnectWallet = async (provider: any): Promise<void> => {
-  try {
-    await provider.disconnect();
-    console.log('Wallet disconnected');
-  } catch (error) {
-    console.error('Disconnect error:', error);
-  }
+export const createClaimTransaction = async (
+  walletPublicKey: string,
+  marketId: string,
+): Promise<Transaction> => {
+  const walletPubkey = new PublicKey(walletPublicKey);
+  const marketIdNum = BigInt(marketId);
+  const mint = getTokenMint();
+
+  const [marketPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from('market'), Buffer.from(marketIdNum.toLeBytes())],
+    PROGRAM_ID,
+  );
+
+  const [betPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from('bet'), marketPda.toBuffer(), walletPubkey.toBuffer()],
+    PROGRAM_ID,
+  );
+
+  const transaction = new Transaction();
+
+  // Add claim_winnings instruction placeholder
+  // This would be the actual Anchor CPI call
+  const instruction = {
+    keys: [
+      { pubkey: marketPda, isSigner: false, isWritable: true },
+      { pubkey: betPda, isSigner: false, isWritable: true },
+      { pubkey: walletPubkey, isSigner: true, isWritable: false },
+    ],
+    programId: PROGRAM_ID,
+  };
+
+  transaction.add(instruction);
+
+  const { blockhash } = await connection.getLatestBlockhash();
+  transaction.recentBlockhash = blockhash;
+  transaction.feePayer = walletPubkey;
+
+  return transaction;
+};
+
+/**
+ * Create a transaction for resolving a market (creator only)
+ * 
+ * @param walletPublicKey - Creator's wallet public key
+ * @param marketId - Market identifier
+ * @param outcome - Market outcome ('YES' or 'NO')
+ * @returns Unsigned Transaction
+ */
+export const createResolveTransaction = async (
+  walletPublicKey: string,
+  marketId: string,
+  outcome: 'YES' | 'NO',
+): Promise<Transaction> => {
+  const walletPubkey = new PublicKey(walletPublicKey);
+  const marketIdNum = BigInt(marketId);
+
+  const [marketPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from('market'), Buffer.from(marketIdNum.toLeBytes())],
+    PROGRAM_ID,
+  );
+
+  const transaction = new Transaction();
+
+  const instruction = {
+    keys: [
+      { pubkey: marketPda, isSigner: false, isWritable: true },
+      { pubkey: walletPubkey, isSigner: true, isWritable: false },
+    ],
+    programId: PROGRAM_ID,
+  };
+
+  transaction.add(instruction);
+
+  const { blockhash } = await connection.getLatestBlockhash();
+  transaction.recentBlockhash = blockhash;
+  transaction.feePayer = walletPubkey;
+
+  return transaction;
 };
 
 /**
@@ -117,92 +220,6 @@ export const getBalance = async (publicKey: string): Promise<number> => {
     console.error('Error fetching balance:', error);
     return 0;
   }
-};
-
-/**
- * Place a bet on a prediction market (calls smart contract)
- */
-export const placeBet = async (
-  walletPublicKey: string,
-  provider: any,
-  marketId: string,
-  amount: number, // in SOL
-  position: 'YES' | 'NO',
-): Promise<string | null> => {
-  try {
-    // TODO: Implement actual program instruction
-    // This is a placeholder that shows the structure
-
-    const fromPubkey = new PublicKey(walletPublicKey);
-    const toPubkey = PROGRAM_ID; // In reality, this would be a PDA
-
-    const transaction = new Transaction().add(
-      SystemProgram.transfer({
-        fromPubkey,
-        toPubkey,
-        lamports: amount * LAMPORTS_PER_SOL,
-      }),
-    );
-
-    // Get recent blockhash
-    const { blockhash } = await connection.getLatestBlockhash();
-    transaction.recentBlockhash = blockhash;
-    transaction.feePayer = fromPubkey;
-
-    // Sign and send transaction
-    const signed = await provider.signAndSendTransaction(transaction);
-    console.log('Bet placed, signature:', signed.signature);
-
-    return signed.signature;
-  } catch (error) {
-    console.error('Error placing bet:', error);
-    return null;
-  }
-};
-
-/**
- * Claim winnings from a resolved market
- */
-export const claimWinnings = async (
-  walletPublicKey: string,
-  provider: any,
-  marketId: string,
-): Promise<string | null> => {
-  try {
-    // TODO: Implement actual program instruction
-    console.log('Claiming winnings for market:', marketId);
-
-    // This would call the claim_winnings instruction on the smart contract
-    // For now, it's a placeholder
-
-    return 'mock_signature';
-  } catch (error) {
-    console.error('Error claiming winnings:', error);
-    return null;
-  }
-};
-
-/**
- * Get market data from on-chain program
- */
-export const getMarketData = async (marketId: string): Promise<any> => {
-  try {
-    // TODO: Fetch market account from program
-    // This would deserialize the Market struct from Rust
-    console.log('Fetching market data:', marketId);
-
-    return null;
-  } catch (error) {
-    console.error('Error fetching market data:', error);
-    return null;
-  }
-};
-
-/**
- * Check if wallet is connected
- */
-export const isWalletConnected = (provider: any): boolean => {
-  return provider?.isConnected || false;
 };
 
 /**
@@ -229,14 +246,69 @@ export const requestAirdrop = async (publicKey: string): Promise<boolean> => {
   }
 };
 
+/**
+ * Fetch market account data from the program
+ * Requires: Valid RPC endpoint + program ID
+ */
+export const getMarketData = async (marketId: string): Promise<any | null> => {
+  try {
+    const marketIdNum = BigInt(marketId);
+    
+    const [marketPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('market'), Buffer.from(marketIdNum.toLeBytes())],
+      PROGRAM_ID,
+    );
+
+    const accountInfo = await connection.getParsedAccountInfo(marketPda);
+    
+    if (!accountInfo.value) {
+      return null;
+    }
+
+    // Parse the account data based on Anchor struct layout
+    // This is a simplified version - actual parsing depends on IDL
+    const data = accountInfo.value.data as Buffer;
+    
+    return {
+      publicKey: marketPda.toString(),
+      marketId: marketIdNum,
+      // Add other fields as needed
+    };
+  } catch (error) {
+    console.error('Error fetching market data:', error);
+    return null;
+  }
+};
+
+/**
+ * Get all markets (requires full RPC + account iteration)
+ * NOTE: This is computationally expensive and may timeout
+ */
+export const getAllMarkets = async (): Promise<any[]> => {
+  try {
+    // Method 1: Using getProgramAccounts (may not work on all RPCs)
+    const accounts = await connection.getProgramAccounts(PROGRAM_ID);
+    
+    return accounts.map(acc => ({
+      pubkey: acc.pubkey.toString(),
+      // Parse account data...
+    }));
+  } catch (error) {
+    console.error('Error fetching all markets:', error);
+    return [];
+  }
+};
+
 export default {
-  detectWalletProviders,
-  connectWallet,
-  disconnectWallet,
+  PROGRAM_ID,
+  NETWORK,
+  RPC_ENDPOINT,
+  connection,
+  createBetTransaction,
+  createClaimTransaction,
+  createResolveTransaction,
   getBalance,
-  placeBet,
-  claimWinnings,
-  getMarketData,
-  isWalletConnected,
   requestAirdrop,
+  getMarketData,
+  getAllMarkets,
 };
