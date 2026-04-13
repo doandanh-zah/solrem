@@ -6,6 +6,7 @@
 import type { SleepData, Market, Device, UserProfile } from '../types';
 import { RESOURCES } from '../resources';
 import * as supabaseService from './supabaseService';
+import { isSupabaseConfigured } from './supabaseClient';
 
 /**
  * Get Sleep History
@@ -18,6 +19,8 @@ export const getSleepHistory = async (
     return [];
   }
 
+  if (!isSupabaseConfigured) return [];
+
   console.log('🔌 Fetching sleep data from Supabase');
   const data = await supabaseService.getSleepHistory(walletAddress, 7);
   return data;
@@ -27,6 +30,8 @@ export const getSleepHistory = async (
  * Get Active Markets
  */
 export const getActiveMarkets = async (): Promise<Market[]> => {
+  if (!isSupabaseConfigured) return [];
+
   console.log('🔌 Fetching markets from Supabase');
   const data = await supabaseService.getActiveMarkets();
   return data;
@@ -43,6 +48,8 @@ export const getUserDevices = async (
     return [];
   }
 
+  if (!isSupabaseConfigured) return [];
+
   console.log('🔌 Fetching devices from Supabase');
   const data = await supabaseService.getUserDevices(walletAddress);
   return data;
@@ -58,6 +65,8 @@ export const getUserProfile = async (
     console.warn('⚠️ No wallet address provided');
     return null;
   }
+
+  if (!isSupabaseConfigured) return null;
 
   console.log('🔌 Fetching user profile from Supabase');
   const data = await supabaseService.getUserByWallet(walletAddress);
@@ -86,6 +95,8 @@ export const toggleDevice = async (
   deviceId: string,
   connected: boolean,
 ): Promise<boolean> => {
+  if (!isSupabaseConfigured) return false;
+
   console.log(`🔌 Toggling device ${deviceId} to ${connected}`);
   return await supabaseService.toggleDeviceConnection(deviceId, connected);
 };
@@ -97,6 +108,8 @@ export const updateProfile = async (
   walletAddress: string,
   updates: { username?: string; bio?: string; avatar_url?: string },
 ): Promise<boolean> => {
+  if (!isSupabaseConfigured) return false;
+
   console.log('🔌 Updating user profile');
   return await supabaseService.updateUserProfile(walletAddress, updates);
 };
@@ -117,6 +130,8 @@ export const placeBet = async (
     console.error('❌ Transaction signature required');
     return false;
   }
+
+  if (!isSupabaseConfigured) return false;
 
   console.log('🔌 Placing bet via Supabase with tx:', transactionSignature);
   const result = await supabaseService.placeBet(
@@ -142,6 +157,8 @@ export const getUserBets = async (walletAddress?: string) => {
     return [];
   }
 
+  if (!isSupabaseConfigured) return [];
+
   console.log('🔌 Fetching user bets from Supabase');
   return await supabaseService.getUserBets(walletAddress);
 };
@@ -150,6 +167,8 @@ export const getUserBets = async (walletAddress?: string) => {
  * Get Leaderboard
  */
 export const getLeaderboard = async () => {
+  if (!isSupabaseConfigured) return [];
+
   console.log('🔌 Fetching leaderboard from Supabase');
   return await supabaseService.getLeaderboard(10);
 };
@@ -161,7 +180,9 @@ export const checkConnection = async (): Promise<{
   supabase: boolean;
   mode: 'live';
 }> => {
-  const isConnected = await supabaseService.checkSupabaseConnection();
+  const isConnected = isSupabaseConfigured
+    ? await supabaseService.checkSupabaseConnection()
+    : false;
   return { supabase: isConnected, mode: 'live' };
 };
 

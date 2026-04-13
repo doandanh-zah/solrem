@@ -310,9 +310,13 @@ const App: React.FC = () => {
       const health = await dataLoader.checkConnection();
       console.log('🔌 Connection status:', health);
       
-      // Load markets (always available)
-      const marketsData = await dataLoader.getActiveMarkets();
-      setMarkets(marketsData);
+      // Load markets when API configured
+      if (isSupabaseConfigured) {
+        const marketsData = await dataLoader.getActiveMarkets();
+        setMarkets(marketsData);
+      } else {
+        setMarkets([]);
+      }
       
       setDataLoading(false);
     };
@@ -452,12 +456,24 @@ const App: React.FC = () => {
   };
 
   const handleConnectWallet = async (walletType: 'Phantom' | 'Solflare') => {
+    if (isLoading) return;
     console.log('🔌 Connecting wallet:', walletType);
     setIsLoading(true);
 
     try {
       select(walletType as any);
-      await walletAdapterConnect();
+      await new Promise((r) => setTimeout(r, 50));
+      try {
+        await walletAdapterConnect();
+      } catch (firstErr: any) {
+        const firstMsg = String(firstErr?.message || '').toLowerCase();
+        if (firstMsg.includes('walletnotselected')) {
+          await new Promise((r) => setTimeout(r, 120));
+          await walletAdapterConnect();
+        } else {
+          throw firstErr;
+        }
+      }
       console.log(`✅ Connected to ${walletType}`);
       setShowWalletModal(false);
     } catch (error: any) {
@@ -466,6 +482,8 @@ const App: React.FC = () => {
 
       if (error?.code === 4001 || message.includes('rejected')) {
         alert('❌ Connection rejected. Please try again.');
+      } else if (message.includes('walletnotselected')) {
+        alert('⚠️ Wallet selected but not ready. Please tap connect again once.');
       } else if (message.includes('walletnotready') || message.includes('not found') || message.includes('not installed')) {
         const installUrl = walletType === 'Phantom' ? 'https://phantom.app/download' : 'https://solflare.com/download';
         const install = confirm(`⚠️ ${walletType} not detected in this browser context. Open install page?`);
