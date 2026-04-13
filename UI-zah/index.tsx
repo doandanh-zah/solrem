@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import ReactDOM from 'react-dom/client';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
-import { PhantomWalletAdapter, SolflareWalletAdapter } from '@solana/wallet-adapter-wallets';
 import { clusterApiUrl } from '@solana/web3.js';
 import App from './App';
 
@@ -18,14 +17,8 @@ const WalletProviderWrapper: React.FC<{ children: React.ReactNode }> = ({ childr
     return clusterApiUrl(network);
   }, [network]);
 
-  // Initialize wallets
-  const wallets = useMemo(
-    () => [
-      new PhantomWalletAdapter(),
-      new SolflareWalletAdapter(),
-    ],
-    []
-  );
+  // Use wallet-standard injected wallets (Phantom/Solflare)
+  const wallets = useMemo(() => [], []);
 
   return (
     <ConnectionProvider endpoint={endpoint}>

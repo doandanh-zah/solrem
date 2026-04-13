@@ -15,7 +15,6 @@ export const getSleepHistory = async (
   walletAddress?: string,
 ): Promise<SleepData[]> => {
   if (!walletAddress) {
-    console.warn('⚠️ No wallet address provided');
     return [];
   }
 
@@ -44,7 +43,6 @@ export const getUserDevices = async (
   walletAddress?: string,
 ): Promise<Device[]> => {
   if (!walletAddress) {
-    console.warn('⚠️ No wallet address provided');
     return [];
   }
 
@@ -62,7 +60,6 @@ export const getUserProfile = async (
   walletAddress?: string,
 ): Promise<UserProfile | null> => {
   if (!walletAddress) {
-    console.warn('⚠️ No wallet address provided');
     return null;
   }
 
@@ -153,7 +150,6 @@ export const placeBet = async (
  */
 export const getUserBets = async (walletAddress?: string) => {
   if (!walletAddress) {
-    console.warn('⚠️ No wallet address provided');
     return [];
   }
 

@@ -4,68 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>SolREM - Pro Sleep Markets</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-              display: ['Space Grotesk', 'sans-serif'],
-              mono: ['JetBrains Mono', 'monospace'],
-            },
-            colors: {
-              primary: '#6366F1', // Indigo
-              secondary: '#3B82F6', // Blue
-              accent: '#22D3EE', // Cyan
-              sport: '#CCFF00', // Neon Lime (Nike style)
-              danger: '#EF4444',
-              dark: '#050505', // Ultra dark carbon
-              surface: '#121212', // Off-black
-              surfaceHighlight: '#1E1E1E',
-              border: '#27272A', // Zinc 800
-            },
-            animation: {
-              'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-              'slide-up': 'slideUp 0.4s ease-out forwards',
-              'spin-fast': 'spin 0.7s linear infinite',
-            },
-            keyframes: {
-              slideUp: {
-                '0%': { transform: 'translateY(20px)', opacity: '0' },
-                '100%': { transform: 'translateY(0)', opacity: '1' },
-              }
-            }
-          },
-        },
-      }
-    </script>
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/index.css" />
     <style>
       body {
         background-color: #050505;
         color: #E4E4E7;
         -webkit-tap-highlight-color: transparent;
       }
-      /* Custom Scrollbar */
-      ::-webkit-scrollbar {
-        width: 4px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #050505;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #27272A;
-        border-radius: 4px;
-      }
-      
+      ::-webkit-scrollbar { width: 4px; }
+      ::-webkit-scrollbar-track { background: #050505; }
+      ::-webkit-scrollbar-thumb { background: #27272A; border-radius: 4px; }
+
       .glass-card {
         background: #121212;
         border: 1px solid #27272A;
-        /* Subtle shine */
         background-image: linear-gradient(145deg, rgba(255,255,255,0.03) 0%, transparent 100%);
       }
-      
+
       .glass-panel {
         background: rgba(18, 18, 18, 0.95);
         backdrop-filter: blur(20px);
@@ -73,150 +30,12 @@
         border-top: 1px solid #27272A;
       }
 
-      /* Sporty Neon Glows */
-      .glow-text {
-        text-shadow: 0 0 10px rgba(204, 255, 0, 0.3);
-      }
-      
-      .active-nav {
-        background: linear-gradient(180deg, rgba(204,255,0,0.1) 0%, transparent 100%);
-        border-top: 2px solid #CCFF00;
-      }
-
-      /* Loader */
-      .loader-ring {
-        border-top-color: #CCFF00;
-        -webkit-animation: spinner 1.5s linear infinite;
-        animation: spinner 1.5s linear infinite;
-      }
-      
-      @keyframes spinner {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-
-      /* Solana Wallet Adapter Modal - Force Visibility */
-      .wallet-adapter-modal-wrapper {
-        z-index: 99999 !important;
-        position: fixed !important;
-        inset: 0 !important;
-        background-color: rgba(0, 0, 0, 0.9) !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        padding: 1rem !important;
-        backdrop-filter: blur(8px) !important;
-      }
-
-      .wallet-adapter-modal {
-        position: relative !important;
-        z-index: 100000 !important;
-        background: #1a1a1a !important;
-        border: 1px solid #CCFF00 !important;
-        border-radius: 8px !important;
-        padding: 2rem !important;
-        max-width: 400px !important;
-        width: 100% !important;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 40px rgba(204, 255, 0, 0.1) !important;
-      }
-
-      .wallet-adapter-modal-title {
-        color: white !important;
-        font-size: 1.5rem !important;
-        font-weight: bold !important;
-        margin-bottom: 1.5rem !important;
-        text-transform: uppercase !important;
-        letter-spacing: 0.05em !important;
-      }
-
-      .wallet-adapter-modal-list {
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 0.75rem !important;
-      }
-
-      .wallet-adapter-modal-list-item {
-        padding: 1rem !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        border-radius: 4px !important;
-        cursor: pointer !important;
-        transition: all 0.2s !important;
-        background: rgba(255, 255, 255, 0.05) !important;
-        display: flex !important;
-        align-items: center !important;
-        gap: 1rem !important;
-      }
-
-      .wallet-adapter-modal-list-item:hover {
-        background: rgba(204, 255, 0, 0.1) !important;
-        border-color: rgba(204, 255, 0, 0.3) !important;
-        transform: translateX(4px) !important;
-      }
-
-      .wallet-adapter-button {
-        background: #CCFF00 !important;
-        color: black !important;
-        border: none !important;
-        padding: 0.75rem 1.5rem !important;
-        border-radius: 4px !important;
-        font-weight: bold !important;
-        cursor: pointer !important;
-        text-transform: uppercase !important;
-        letter-spacing: 0.05em !important;
-      }
-
-      .wallet-adapter-button:hover {
-        background: #b8e600 !important;
-      }
-
-      .wallet-adapter-modal-button-close {
-        position: absolute !important;
-        top: 1rem !important;
-        right: 1rem !important;
-        background: transparent !important;
-        border: none !important;
-        color: white !important;
-        cursor: pointer !important;
-        font-size: 1.5rem !important;
-        opacity: 0.6 !important;
-      }
-
-      .wallet-adapter-modal-button-close:hover {
-        opacity: 1 !important;
-      }
-
-      /* Mobile Warning */
-      .mobile-warning {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        z-index: 999999;
-        background: #1a1a1a;
-        border: 2px solid #ef4444;
-        border-radius: 8px;
-        padding: 2rem;
-        max-width: 400px;
-        width: 90%;
-        text-align: center;
-      }
+      .glow-text { text-shadow: 0 0 10px rgba(204, 255, 0, 0.3); }
+      .active-nav { background: linear-gradient(180deg, rgba(204,255,0,0.1) 0%, transparent 100%); border-top: 2px solid #CCFF00; }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@^19.2.4",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "recharts": "https://esm.sh/recharts@^3.7.0",
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-    "@google/genai": "https://esm.sh/@google/genai@^1.38.0"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
-</head>
+  </head>
   <body>
     <div id="root"></div>
-  <script type="module" src="/index.tsx"></script>
-</body>
+    <script type="module" src="/index.tsx"></script>
+  </body>
 </html>

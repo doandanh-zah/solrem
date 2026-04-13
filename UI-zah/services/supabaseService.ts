@@ -357,7 +357,6 @@ export const getLeaderboard = async (limit: number = 10) => {
 
 export const checkSupabaseConnection = async (): Promise<boolean> => {
   if (!isSupabaseConfigured) {
-    console.warn('⚠️ Supabase env missing. Running in API-disabled mode.');
     return false;
   }
 
