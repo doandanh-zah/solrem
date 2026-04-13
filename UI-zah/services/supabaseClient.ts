@@ -4,14 +4,12 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://invalid.supabase.local';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'invalid-anon-key';
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    'Missing Supabase environment variables. Please check .env.local',
-  );
-}
+export const isSupabaseConfigured = Boolean(
+  import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY,
+);
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -26,6 +24,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
  * Creates a Supabase auth session that allows RLS policies to work
  */
 export async function authenticateWithWallet(walletAddress: string) {
+  if (!isSupabaseConfigured) {
+    console.warn('⚠️ Supabase env is not configured. Skipping auth flow.');
+    return false;
+  }
+
   try {
     console.log('🔐 Authenticating with Supabase using wallet:', walletAddress);
     

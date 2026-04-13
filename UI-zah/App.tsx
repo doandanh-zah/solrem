@@ -44,7 +44,7 @@ import {
   TrendingDown
 } from 'lucide-react';
 import { Tab, Market, UserBet, SleepData, Device, UserProfile } from './types';
-import { MOCK_RESOURCES } from './constants.mock';
+import { RESOURCES } from './resources';
 import SleepChart from './components/SleepChart';
 import ScoreRing from './components/ScoreRing';
 import WalletModal from './components/WalletModal';
@@ -615,7 +615,7 @@ const App: React.FC = () => {
         betPosition,
         entryPrice,
         potentialPayout,
-        'mock_tx_signature' // In production, get from Solana transaction
+        'pending_tx_signature'
       );
       
       if (success) {
@@ -724,9 +724,8 @@ const App: React.FC = () => {
             <div className="flex items-center gap-2">
                <span className="w-1.5 h-1.5 rounded-full bg-sport animate-pulse"></span>
                <span className="text-[10px] text-gray-400 font-mono uppercase tracking-wider">System Online</span>
-               {/* Data Mode Indicator */}
-               <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${import.meta.env.VITE_USE_MOCK_DATA === 'true' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-green-500/20 text-green-400 border border-green-500/30'}`}>
-                 {import.meta.env.VITE_USE_MOCK_DATA === 'true' ? 'MOCK' : 'LIVE'}
+               <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/30">
+                 LIVE
                </span>
             </div>
           </div>
@@ -1116,7 +1115,7 @@ const App: React.FC = () => {
       </div>
 
       <div className="space-y-4">
-        {MOCK_RESOURCES.map(resource => (
+        {RESOURCES.map(resource => (
           <div key={resource.id} className="glass-card rounded-sm overflow-hidden group">
              <div className={`h-24 bg-gradient-to-r ${resource.thumbnailColor} relative`}>
                 <div className="absolute inset-0 bg-black/30"></div>

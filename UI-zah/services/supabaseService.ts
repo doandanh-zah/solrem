@@ -2,7 +2,7 @@
  * Supabase Service - Replace Mock Data with Real Database
  */
 
-import { supabase, Database } from './supabaseClient';
+import { supabase, Database, isSupabaseConfigured } from './supabaseClient';
 import type { SleepData, Market, Device, UserProfile } from '../types';
 
 type Tables = Database['public']['Tables'];
@@ -356,6 +356,11 @@ export const getLeaderboard = async (limit: number = 10) => {
  */
 
 export const checkSupabaseConnection = async (): Promise<boolean> => {
+  if (!isSupabaseConfigured) {
+    console.warn('⚠️ Supabase env missing. Running in API-disabled mode.');
+    return false;
+  }
+
   try {
     const { error } = await supabase.from('users').select('id').limit(1);
     return !error;

@@ -4,7 +4,7 @@
  */
 
 import type { SleepData, Market, Device, UserProfile } from '../types';
-import { MOCK_RESOURCES } from '../constants.mock'; // Keep for resources/educational content
+import { RESOURCES } from '../resources';
 import * as supabaseService from './supabaseService';
 
 /**
@@ -73,10 +73,10 @@ export const getUserProfile = async (
 };
 
 /**
- * Get Resources (always mock for now)
+ * Get Resources
  */
 export const getResources = () => {
-  return MOCK_RESOURCES;
+  return RESOURCES;
 };
 
 /**
