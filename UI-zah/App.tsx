@@ -51,7 +51,7 @@ import WalletModal from './components/WalletModal';
 import { generateSleepInsights } from './services/geminiService';
 import * as dataLoader from './services/dataLoader';
 import * as walletService from './services/walletService';
-import { authenticateWithWallet, signOutFromSupabase } from './services/supabaseClient';
+import { authenticateWithWallet, isSupabaseConfigured, signOutFromSupabase } from './services/supabaseClient';
 
 // --- Loading Component (Enhanced) ---
 const LoadingState: React.FC<{ text?: string }> = ({ text = "LOADING..." }) => (
@@ -352,68 +352,73 @@ const App: React.FC = () => {
     }
 
     return () => {
-      // Cleanup listeners
-      if (windowPhantom) {
-        windowPhantom.removeAllListeners();
+      // Cleanup only listeners added by this component
+      if (windowPhantom?.off) {
+        windowPhantom.off('accountChanged', handleAccountChange);
       }
-      if (windowSolflare) {
-        windowSolflare.removeAllListeners();
+      if (windowSolflare?.off) {
+        windowSolflare.off('accountChanged', handleAccountChange);
       }
     };
   }, []);
 
   // Load user-specific data when wallet connects
-  // Load user data when wallet connects
   useEffect(() => {
     if (walletConnected && walletAddress) {
       console.log('✅ Wallet connected:', walletAddress);
-      
-      // Exit onboarding
-      setIsOnboarding(false);
-      
+
       const loadUserData = async () => {
         setDataLoading(true);
-        
+
         try {
-          // Authenticate with Supabase first (required for RLS)
-          console.log('🔐 Authenticating with Supabase...');
-          const authenticated = await authenticateWithWallet(walletAddress);
-          
-          if (!authenticated) {
-            console.error('❌ Failed to authenticate with Supabase');
-            alert('Failed to authenticate. Please try again.');
-            setDataLoading(false);
-            return;
+          if (isSupabaseConfigured) {
+            console.log('🔐 Authenticating with Supabase...');
+            const authenticated = await authenticateWithWallet(walletAddress);
+            if (!authenticated) {
+              console.error('❌ Failed to authenticate with Supabase');
+              await disconnect();
+              setIsOnboarding(true);
+              setDataLoading(false);
+              alert('Wallet connected but app auth failed. Please try again.');
+              return;
+            }
+          } else {
+            console.warn('⚠️ Supabase env not configured. Running wallet-only mode.');
           }
-          
-          // Load user profile (creates new user if doesn't exist)
+
           console.log('📊 Loading user profile...');
           const profile = await dataLoader.getUserProfile(walletAddress);
-          setUserProfile(profile);
-          setTempProfile(profile);
-          
-          // Load sleep history
+          const fallbackProfile = {
+            username: walletService.shortenAddress(walletAddress, 6),
+            bio: 'Wallet connected',
+            avatarUrl: '',
+            rank: 0,
+            solBalance: 0,
+            remPoints: 0,
+            streak: 0,
+          };
+          setUserProfile(profile || fallbackProfile);
+          setTempProfile(profile || fallbackProfile);
+
           console.log('😴 Loading sleep history...');
           const sleep = await dataLoader.getSleepHistory(walletAddress);
           setSleepHistory(sleep);
-          
-          // Load devices
+
           console.log('⌚ Loading devices...');
           const devices = await dataLoader.getUserDevices(walletAddress);
           setConnectedDevices(devices);
-          
-          // Load user bets
+
           console.log('🎲 Loading user bets...');
           const bets = await dataLoader.getUserBets(walletAddress);
           setActiveBets(bets);
-          
-          // Generate AI insight if sleep data exists
+
           if (sleep.length > 0) {
             const today = sleep[sleep.length - 1];
             const insight = await generateSleepInsights(today);
             setDailyInsight(insight);
           }
-          
+
+          setIsOnboarding(false);
           console.log('✅ All user data loaded!');
         } catch (error) {
           console.error('❌ Error loading user data:', error);
@@ -421,10 +426,9 @@ const App: React.FC = () => {
           setDataLoading(false);
         }
       };
-      
+
       loadUserData();
     } else if (!walletConnected && !isOnboarding) {
-      // Reset to onboarding when wallet disconnects (but not on initial load)
       console.log('👋 Wallet disconnected, back to onboarding');
       setIsOnboarding(true);
     }
@@ -450,118 +454,27 @@ const App: React.FC = () => {
   const handleConnectWallet = async (walletType: 'Phantom' | 'Solflare') => {
     console.log('🔌 Connecting wallet:', walletType);
     setIsLoading(true);
-    
+
     try {
-      // Check if Phantom/Solflare is available in browser (mobile or desktop)
-      const windowPhantom = (window as any).phantom?.solana;
-      const windowSolflare = (window as any).solflare;
-      
-      // Try to connect directly via injected wallet (works for both mobile & desktop)
-      if (walletType === 'Phantom') {
-        if (windowPhantom && windowPhantom.isPhantom) {
-          console.log('✅ Phantom detected, connecting...');
-          try {
-            // First, select the wallet in wallet adapter
-            const phantomWalletName = 'Phantom';
-            select(phantomWalletName as any);
-            
-            // Then connect via wallet adapter (this will use the injected wallet)
-            await walletAdapterConnect();
-            
-            console.log('✅ Connected to Phantom via adapter');
-            setShowWalletModal(false);
-            setIsLoading(false);
-            return;
-          } catch (err: any) {
-            console.error('❌ Phantom connection failed:', err);
-            if (err.code === 4001) {
-              alert('❌ Connection rejected. Please try again.');
-            } else {
-              alert('❌ Failed to connect to Phantom. Please try again.');
-            }
-            setIsLoading(false);
-            return;
-          }
-        } else {
-          // Phantom not installed
-          if (isMobile) {
-            alert(
-              '📱 Phantom Not Found!\n\n' +
-              '1. Install Phantom app from App Store/Play Store\n' +
-              '2. Open Phantom app\n' +
-              '3. Use browser inside Phantom\n' +
-              '4. Visit this site again'
-            );
-          } else {
-            const install = confirm(
-              '🦊 Phantom Extension Not Found!\n\n' +
-              'Install Phantom browser extension to continue.\n\n' +
-              'Click OK to visit Phantom.app'
-            );
-            if (install) {
-              window.open('https://phantom.app/download', '_blank');
-            }
-          }
-          setIsLoading(false);
-          return;
-        }
-      }
-      
-      if (walletType === 'Solflare') {
-        if (windowSolflare && windowSolflare.isSolflare) {
-          console.log('✅ Solflare detected, connecting...');
-          try {
-            // First, select the wallet in wallet adapter
-            const solflareWalletName = 'Solflare';
-            select(solflareWalletName as any);
-            
-            // Then connect via wallet adapter
-            await walletAdapterConnect();
-            
-            console.log('✅ Connected to Solflare via adapter');
-            setShowWalletModal(false);
-            setIsLoading(false);
-            return;
-          } catch (err: any) {
-            console.error('❌ Solflare connection failed:', err);
-            if (err.code === 4001) {
-              alert('❌ Connection rejected. Please try again.');
-            } else {
-              alert('❌ Failed to connect to Solflare. Please try again.');
-            }
-            setIsLoading(false);
-            return;
-          }
-        } else {
-          // Solflare not installed
-          if (isMobile) {
-            alert(
-              '📱 Solflare Not Found!\n\n' +
-              '1. Install Solflare app from App Store/Play Store\n' +
-              '2. Open Solflare app\n' +
-              '3. Use browser inside Solflare\n' +
-              '4. Visit this site again'
-            );
-          } else {
-            const install = confirm(
-              '🔥 Solflare Extension Not Found!\n\n' +
-              'Install Solflare browser extension to continue.\n\n' +
-              'Click OK to visit Solflare.com'
-            );
-            if (install) {
-              window.open('https://solflare.com/download', '_blank');
-            }
-          }
-          setIsLoading(false);
-          return;
-        }
-      }
-      
-    } catch (error) {
-      console.error('❌ Wallet connection error:', error);
-      alert('Failed to connect wallet. Please try again.');
-      setIsLoading(false);
+      select(walletType as any);
+      await walletAdapterConnect();
+      console.log(`✅ Connected to ${walletType}`);
       setShowWalletModal(false);
+    } catch (error: any) {
+      console.error(`❌ ${walletType} connection failed:`, error);
+      const message = String(error?.message || '').toLowerCase();
+
+      if (error?.code === 4001 || message.includes('rejected')) {
+        alert('❌ Connection rejected. Please try again.');
+      } else if (message.includes('walletnotready') || message.includes('not found') || message.includes('not installed')) {
+        const installUrl = walletType === 'Phantom' ? 'https://phantom.app/download' : 'https://solflare.com/download';
+        const install = confirm(`⚠️ ${walletType} not detected in this browser context. Open install page?`);
+        if (install) window.open(installUrl, '_blank');
+      } else {
+        alert(`❌ Failed to connect to ${walletType}. Please try again.`);
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -736,7 +649,7 @@ const App: React.FC = () => {
         >
           <Wallet className="w-4 h-4" />
           <span className="text-xs font-mono font-bold">
-            {walletConnected ? '8x...3f29' : 'Connect'}
+            {walletConnected ? walletService.shortenAddress(walletAddress, 4) : 'Connect'}
           </span>
         </button>
       </div>
