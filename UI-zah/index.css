@@ -1,6 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 /* Wallet Adapter Modal Override - Ensure it's visible! */
 .wallet-adapter-modal-wrapper {

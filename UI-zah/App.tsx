@@ -200,52 +200,21 @@ const LandingPage: React.FC<{ onOpenConnect: () => void; onGuest: () => void }> 
         </div>
       </div>
       
-      <h1 className="text-6xl font-display font-bold uppercase tracking-tighter text-white mb-2 leading-none">
+      <h1 className="text-6xl font-display font-bold uppercase tracking-tighter text-white mb-12 leading-none">
         Sol<span className="text-sport glow-text">REM</span>
       </h1>
-      <p className="text-gray-400 font-mono text-xs tracking-[0.2em] uppercase mb-12 border-b border-white/10 pb-4 px-8">
-        Sleep to Earn Protocol
-      </p>
 
-      {/* Feature Pills */}
-      <div className="flex gap-3 mb-12 w-full justify-center">
-         <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-2 rounded-full backdrop-blur-md">
-            <Moon className="w-3 h-3 text-accent" />
-            <span className="text-[10px] font-bold uppercase tracking-wide">Track</span>
-         </div>
-         <div className="w-px h-8 bg-white/10"></div>
-         <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-2 rounded-full backdrop-blur-md">
-            <TrendingUp className="w-3 h-3 text-sport" />
-            <span className="text-[10px] font-bold uppercase tracking-wide">Bet</span>
-         </div>
-         <div className="w-px h-8 bg-white/10"></div>
-         <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-2 rounded-full backdrop-blur-md">
-            <Wallet className="w-3 h-3 text-purple-400" />
-            <span className="text-[10px] font-bold uppercase tracking-wide">Earn</span>
-         </div>
-      </div>
-
-      <div className="w-full space-y-4">
-        <button 
+      <div className="w-full">
+        <button
           onClick={onOpenConnect}
-          className="w-full group relative bg-sport text-black font-display font-bold text-xl py-5 rounded-sm uppercase tracking-wide hover:bg-sport/90 transition-all active:scale-[0.98] shadow-[0_0_20px_rgba(204,255,0,0.25)] flex items-center justify-center gap-3 overflow-hidden"
+          className="w-full min-h-12 group relative bg-sport text-black font-display font-bold text-xl py-5 rounded-sm uppercase tracking-wide hover:bg-sport/90 transition-all active:scale-[0.98] shadow-[0_0_20px_rgba(204,255,0,0.25)] focus-visible:ring-2 focus-visible:ring-sport focus-visible:ring-offset-2 focus-visible:ring-offset-black flex items-center justify-center gap-3 overflow-hidden"
+          aria-label="Connect wallet"
         >
           <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 skew-y-12"></div>
           <Wallet className="w-6 h-6 relative z-10" />
           <span className="relative z-10">Connect Wallet</span>
         </button>
-        
-        <button 
-          onClick={onGuest}
-          className="w-full bg-transparent text-gray-500 font-mono text-xs py-3 rounded-sm uppercase tracking-widest hover:text-white transition-colors flex items-center justify-center gap-2 group"
-        >
-          Enter as Guest <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
-        </button>
       </div>
-    </div>
-    
-    <div className="absolute bottom-6 text-[10px] text-gray-700 font-mono uppercase">
-       Powered by Solana & Gemini AI
     </div>
   </div>
 );
