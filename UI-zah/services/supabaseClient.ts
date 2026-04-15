@@ -29,51 +29,11 @@ export async function authenticateWithWallet(walletAddress: string) {
     return false;
   }
 
-  try {
-    console.log('🔐 Authenticating with Supabase using wallet:', walletAddress);
-    
-    // Use wallet address as unique identifier
-    // Email format: wallet@solrem.app
-    // Password: wallet address (hashed by Supabase Auth)
-    const email = `${walletAddress}@solrem.app`;
-    const password = walletAddress;
-    
-    // Try to sign in first
-    let { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    
-    // If sign in fails (user doesn't exist), create new account
-    if (error && error.message.includes('Invalid login credentials')) {
-      console.log('🆕 Creating new Supabase auth user');
-      ({ data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            wallet_address: walletAddress,
-          },
-          emailRedirectTo: undefined, // No email confirmation needed
-        },
-      }));
-    }
-    
-    if (error) {
-      console.error('❌ Supabase auth error:', error);
-      return false;
-    }
-    
-    if (data?.user) {
-      console.log('✅ Authenticated with Supabase:', data.user.id);
-      return true;
-    }
-    
-    return false;
-  } catch (error) {
-    console.error('❌ Authentication error:', error);
-    return false;
-  }
+  // MVP mode: avoid Supabase Auth email/password flow to prevent rate-limit (429)
+  // while wallet connect/disconnect is frequent in testing.
+  // Data access is controlled by RLS/policies and anon key for now.
+  console.log('🔐 Supabase auth bypass (MVP) for wallet:', walletAddress);
+  return true;
 }
 
 /**
