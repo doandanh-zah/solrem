@@ -221,7 +221,7 @@ const LandingPage: React.FC<{ onOpenConnect: () => void; onGuest: () => void }> 
 
 const App: React.FC = () => {
   // Real Solana Wallet Integration
-  const { publicKey, disconnect, signTransaction, connect: walletAdapterConnect, select } = useWallet();
+  const { publicKey, disconnect, signTransaction, connect: walletAdapterConnect, select, connected, wallet } = useWallet();
   const { setVisible } = useWalletModal();
   const walletAddress = publicKey?.toBase58() || '';
   const walletConnected = !!publicKey;
@@ -429,30 +429,58 @@ const App: React.FC = () => {
     console.log('🔌 Connecting wallet:', walletType);
     setIsLoading(true);
 
+    const isSelectionRaceError = (err: any) => {
+      const raw = `${String(err?.name || '')} ${String(err?.message || '')}`.toLowerCase();
+      return raw.includes('walletnotselected') || raw.includes('wallet not selected');
+    };
+
     try {
-      select(walletType as any);
-      await new Promise((r) => setTimeout(r, 50));
-      try {
-        await walletAdapterConnect();
-      } catch (firstErr: any) {
-        const firstMsg = String(firstErr?.message || '').toLowerCase();
-        if (firstMsg.includes('walletnotselected')) {
+      // When switching wallets, disconnect current adapter first to avoid stale session race.
+      if (connected) {
+        try {
+          await disconnect();
           await new Promise((r) => setTimeout(r, 120));
-          await walletAdapterConnect();
-        } else {
-          throw firstErr;
+        } catch (disconnectErr) {
+          console.warn('⚠️ Pre-switch disconnect warning:', disconnectErr);
         }
       }
+
+      // Adapter selection can be async in wallet-standard, so retry connect a few times.
+      let connectedOk = false;
+      let lastError: any = null;
+
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          select(walletType as any);
+          const selectedName = wallet?.adapter?.name || 'none';
+          console.log(`🧭 Wallet selected (attempt ${attempt + 1}):`, selectedName, '→', walletType);
+          await new Promise((r) => setTimeout(r, 120 + attempt * 100));
+          await walletAdapterConnect();
+          connectedOk = true;
+          break;
+        } catch (err) {
+          lastError = err;
+          if (isSelectionRaceError(err) && attempt < 2) {
+            console.warn(`⏳ Wallet selection not ready (attempt ${attempt + 1}), retrying...`);
+            continue;
+          }
+          throw err;
+        }
+      }
+
+      if (!connectedOk && lastError) throw lastError;
+
       console.log(`✅ Connected to ${walletType}`);
       setShowWalletModal(false);
     } catch (error: any) {
       console.error(`❌ ${walletType} connection failed:`, error);
       const message = String(error?.message || '').toLowerCase();
+      const name = String(error?.name || '').toLowerCase();
 
       if (error?.code === 4001 || message.includes('rejected')) {
         alert('❌ Connection rejected. Please try again.');
-      } else if (message.includes('walletnotselected')) {
-        alert('⚠️ Wallet selected but not ready. Please tap connect again once.');
+      } else if (isSelectionRaceError(error) || name.includes('walletnotselected')) {
+        alert('⚠️ Wallet adapter was still syncing. Please click connect again.');
       } else if (message.includes('walletnotready') || message.includes('not found') || message.includes('not installed')) {
         const installUrl = walletType === 'Phantom' ? 'https://phantom.app/download' : 'https://solflare.com/download';
         const install = confirm(`⚠️ ${walletType} not detected in this browser context. Open install page?`);
