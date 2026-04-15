@@ -287,7 +287,14 @@ export const getUserBets = async (walletAddress: string) => {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    return (data || []).map((bet: any) => ({
+      marketId: bet.market_id,
+      amount: Number(bet.amount || 0),
+      position: bet.position,
+      entryPrice: Number(bet.entry_price || 0),
+      potentialPayout: Number(bet.potential_payout || 0),
+      status: bet.status || 'OPEN',
+    }));
   } catch (error) {
     console.error('Error fetching user bets:', error);
     return [];

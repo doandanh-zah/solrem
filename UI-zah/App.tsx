@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { PublicKey } from '@solana/web3.js';
 import { 
   Home, 
   BarChart2, 
@@ -257,6 +258,7 @@ const App: React.FC = () => {
   const [sleepHistory, setSleepHistory] = useState<SleepData[]>([]);
   const [markets, setMarkets] = useState<Market[]>([]);
   const [connectedDevices, setConnectedDevices] = useState<Device[]>([]);
+  const [leaderboard, setLeaderboard] = useState<Array<{ username: string; total_rem_points: number; wallet_address: string }>>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   
   // Profile Edit State
@@ -268,6 +270,7 @@ const App: React.FC = () => {
   const [isSuccess, setIsSuccess] = useState(false); // For success animation
   const [isError, setIsError] = useState(false); // For error animation
   const [isScanning, setIsScanning] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
 
   // Load initial data on mount
@@ -279,12 +282,17 @@ const App: React.FC = () => {
       const health = await dataLoader.checkConnection();
       console.log('🔌 Connection status:', health);
       
-      // Load markets when API configured
+      // Load global data when API configured
       if (isSupabaseConfigured) {
-        const marketsData = await dataLoader.getActiveMarkets();
-        setMarkets(marketsData);
+        const [marketsData, leaderboardData] = await Promise.all([
+          dataLoader.getActiveMarkets(),
+          dataLoader.getLeaderboard(),
+        ]);
+        setMarkets(marketsData || []);
+        setLeaderboard((leaderboardData as any) || []);
       } else {
         setMarkets([]);
+        setLeaderboard([]);
       }
       
       setDataLoading(false);
@@ -375,20 +383,25 @@ const App: React.FC = () => {
 
           console.log('😴 Loading sleep history...');
           const sleep = await dataLoader.getSleepHistory(walletAddress);
-          setSleepHistory(sleep);
+          setSleepHistory(sleep || []);
 
           console.log('⌚ Loading devices...');
           const devices = await dataLoader.getUserDevices(walletAddress);
-          setConnectedDevices(devices);
+          setConnectedDevices(devices || []);
 
           console.log('🎲 Loading user bets...');
           const bets = await dataLoader.getUserBets(walletAddress);
-          setActiveBets(bets);
+          setActiveBets((bets as any) || []);
 
-          if (sleep.length > 0) {
+          const leaderboardData = await dataLoader.getLeaderboard();
+          setLeaderboard((leaderboardData as any) || []);
+
+          if (sleep && sleep.length > 0) {
             const today = sleep[sleep.length - 1];
             const insight = await generateSleepInsights(today);
             setDailyInsight(insight);
+          } else {
+            setDailyInsight('No sleep data yet. Connect a wearable to start tracking.');
           }
 
           setIsOnboarding(false);
@@ -525,17 +538,22 @@ const App: React.FC = () => {
   }, [publicKey]);
 
   const handlePlaceBet = async () => {
-    if (!showBetModal || !walletAddress) return;
+    if (!showBetModal || !walletAddress || !publicKey || !signTransaction) return;
     setIsLoading(true);
-    
+
     const entryPrice = betPosition === 'YES' ? showBetModal.yesPercent : showBetModal.noPercent;
-    const potentialPayout = betAmount * (100 / entryPrice);
-    
-    // Simulate transaction delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
+    const potentialPayout = betAmount * (100 / Math.max(entryPrice, 1));
+
     try {
-      // Save bet to database
+      // Force real wallet popup with a tiny on-chain transaction (devnet)
+      const vaultAddress = import.meta.env.VITE_BET_VAULT || walletAddress;
+      const tx = walletService.createTransferTransaction(
+        publicKey,
+        new PublicKey(vaultAddress),
+        0.000001,
+      );
+      const txSig = await walletService.sendTransaction(tx, signTransaction, publicKey);
+
       const success = await dataLoader.placeBet(
         walletAddress,
         showBetModal.id,
@@ -543,9 +561,9 @@ const App: React.FC = () => {
         betPosition,
         entryPrice,
         potentialPayout,
-        'pending_tx_signature'
+        txSig,
       );
-      
+
       if (success) {
         const newBet: UserBet = {
           marketId: showBetModal.id,
@@ -553,30 +571,19 @@ const App: React.FC = () => {
           position: betPosition,
           entryPrice,
           potentialPayout,
-          status: 'OPEN'
+          status: 'OPEN',
         };
-        setActiveBets([...activeBets, newBet]);
-        
-        // Important: Turn off loading BEFORE showing success
+        setActiveBets((prev) => [...prev, newBet]);
         setIsLoading(false);
-        
-        // Small delay then show success animation
-        setTimeout(() => {
-          setIsSuccess(true);
-        }, 100);
+        setTimeout(() => setIsSuccess(true), 100);
       } else {
-        // If failed, show error
         setIsLoading(false);
-        setTimeout(() => {
-          setIsError(true);
-        }, 100);
+        setTimeout(() => setIsError(true), 100);
       }
     } catch (error) {
       console.error('❌ Bet placement error:', error);
       setIsLoading(false);
-      setTimeout(() => {
-        setIsError(true);
-      }, 100);
+      setTimeout(() => setIsError(true), 100);
     }
   };
 
@@ -620,21 +627,43 @@ const App: React.FC = () => {
     setIsEditingProfile(false);
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setTempProfile(prev => ({ ...prev, avatarUrl: url }));
+    if (!file) return;
+
+    try {
+      setIsUploadingAvatar(true);
+      const key = import.meta.env.VITE_IMGBB_API_KEY || '5c5191a763d20c7fad2bfb62035d5210';
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const resp = await fetch(`https://api.imgbb.com/1/upload?key=${key}`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const json = await resp.json();
+      const uploadedUrl = json?.data?.url as string | undefined;
+      if (!resp.ok || !uploadedUrl) {
+        throw new Error(json?.error?.message || 'IMGBB upload failed');
+      }
+
+      setTempProfile((prev) => (prev ? { ...prev, avatarUrl: uploadedUrl } : prev));
+    } catch (error) {
+      console.error('❌ Avatar upload failed:', error);
+      alert('Avatar upload failed. Please try again.');
+    } finally {
+      setIsUploadingAvatar(false);
     }
   };
 
   // --- Views ---
 
   const renderDashboard = () => {
-    if (dataLoading || !todaySleep || todaySleep.score === 0) {
+    if (dataLoading) {
       return (
         <div className="flex items-center justify-center h-screen">
-          <LoadingState text="LOADING SLEEP DATA..." />
+          <LoadingState text="LOADING DASHBOARD..." />
         </div>
       );
     }
@@ -941,20 +970,24 @@ const App: React.FC = () => {
       </div>
 
       <div className="glass-card rounded-sm overflow-hidden">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className={`p-4 flex items-center justify-between border-b border-border last:border-0 ${i === 4 && userProfile ? 'bg-sport/5 border-l-2 border-l-sport' : ''}`}>
-            <div className="flex items-center gap-4">
-              <span className={`font-mono w-6 text-sm ${i <= 3 ? 'text-sport' : 'text-gray-500'}`}>{i === 4 && userProfile ? userProfile.rank : i + 3}</span>
-              <div className="flex flex-col">
-                <span className={`font-bold text-sm ${i === 4 ? 'text-white' : 'text-gray-300'}`}>
-                  {i === 4 && userProfile ? userProfile.username.toUpperCase() : `USER_ID_88${i}`}
-                </span>
-                <span className="text-[10px] text-gray-500 font-mono">ACCURACY 96.5%</span>
+        {(leaderboard.length > 0 ? leaderboard : [{ username: 'NO_DATA', total_rem_points: 0, wallet_address: 'n/a' }]).map((item, idx) => {
+          const rank = idx + 1;
+          const isCurrentUser = !!walletAddress && item.wallet_address === walletAddress;
+          return (
+            <div key={`${item.wallet_address}-${idx}`} className={`p-4 flex items-center justify-between border-b border-border last:border-0 ${isCurrentUser ? 'bg-sport/5 border-l-2 border-l-sport' : ''}`}>
+              <div className="flex items-center gap-4">
+                <span className={`font-mono w-6 text-sm ${rank <= 3 ? 'text-sport' : 'text-gray-500'}`}>{rank}</span>
+                <div className="flex flex-col">
+                  <span className={`font-bold text-sm ${isCurrentUser ? 'text-white' : 'text-gray-300'}`}>
+                    {String(item.username || 'UNKNOWN').toUpperCase()}
+                  </span>
+                  <span className="text-[10px] text-gray-500 font-mono">WALLET {walletService.shortenAddress(item.wallet_address || 'n/a', 4)}</span>
+                </div>
               </div>
+              <span className="font-mono font-bold text-accent">{Number(item.total_rem_points || 0)} PTS</span>
             </div>
-            <span className="font-mono font-bold text-accent">{3000 - (i * 120)} PTS</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -1130,7 +1163,7 @@ const App: React.FC = () => {
                   <label className="flex items-center justify-center w-full p-3 border border-dashed border-border rounded-sm cursor-pointer hover:border-sport hover:bg-surfaceHighlight transition-colors group">
                       <div className="flex items-center gap-2">
                           <Upload className="w-4 h-4 text-gray-400 group-hover:text-sport" />
-                          <span className="text-xs font-mono text-gray-400 group-hover:text-white">Tap to upload image</span>
+                          <span className="text-xs font-mono text-gray-400 group-hover:text-white">{isUploadingAvatar ? 'Uploading...' : 'Tap to upload image'}</span>
                       </div>
                       <input 
                         type="file" 
