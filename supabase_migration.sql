@@ -429,3 +429,44 @@ GROUP BY u.id, u.username;
 -- =====================================================
 -- MIGRATION COMPLETE ✅
 -- =====================================================
+
+-- =====================================================
+-- 11. BASIC APP COMPATIBILITY POLICIES (MVP)
+-- =====================================================
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'users' AND policyname = 'MVP users full access'
+  ) THEN
+    CREATE POLICY "MVP users full access" ON users FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'sleep_records' AND policyname = 'MVP sleep_records full access'
+  ) THEN
+    CREATE POLICY "MVP sleep_records full access" ON sleep_records FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'devices' AND policyname = 'MVP devices full access'
+  ) THEN
+    CREATE POLICY "MVP devices full access" ON devices FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'markets' AND policyname = 'MVP markets full access'
+  ) THEN
+    CREATE POLICY "MVP markets full access" ON markets FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'user_bets' AND policyname = 'MVP user_bets full access'
+  ) THEN
+    CREATE POLICY "MVP user_bets full access" ON user_bets FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+END $$;
